@@ -5,18 +5,15 @@
 
 // ---------- CONFIGURACIÓN ----------
 
-// Correo de la empresa. Déjalo vacío ("") hasta tenerlo listo.
-// Al escribirlo aquí, por ejemplo "contacto@sdt.cl":
-//   1) aparece automáticamente en la sección de contacto, y
-//   2) cada consulta del formulario también llega a ese correo (servicio FormSubmit).
-const CORREO = "";
+// Correo de la empresa: aquí llegan todas las consultas del formulario (servicio FormSubmit).
+// Después de activarlo, puedes reemplazarlo por el código que te envía FormSubmit
+// para que el correo no quede escrito en el código (ver LEEME.md).
+const CORREO = "solucionesdesarrollo98@gmail.com";
 
-// Número que usa el botón flotante (formato internacional, sin "+" ni espacios)
-const WHATSAPP_FLOTANTE = "56934361183";
-
-// Números permitidos para el formulario. Solo se envía a estos,
-// aunque alguien modifique el HTML desde el navegador.
-const NUMEROS_PERMITIDOS = ["56934361183", "56977894839"];
+// Números de WhatsApp (formato internacional, sin "+" ni espacios).
+// No se muestran en la página: solo se usan para abrir la conversación.
+// Las consultas se reparten entre ambos números.
+const NUMEROS_WHATSAPP = ["56934361183", "56977894839"];
 
 // Seguridad del formulario
 const TIEMPO_MINIMO_MS = 3000;      // un robot llena el formulario en menos de 3 segundos
@@ -33,13 +30,17 @@ window.addEventListener("scroll", () => {
     encabezado.classList.toggle("con-borde", window.scrollY > 10);
 }, { passive: true });
 
-// ---------- 3. Mostrar el correo cuando esté configurado ----------
-if (CORREO) {
-    const enlaceCorreo = document.getElementById("enlaceCorreo");
-    enlaceCorreo.textContent = CORREO;
-    enlaceCorreo.href = `mailto:${CORREO}`;
-    document.getElementById("datoCorreo").hidden = false;
-}
+// ---------- 3. WhatsApp sin mostrar el número ----------
+// A cada visitante se le asigna uno de los dos números al azar, así las consultas se reparten.
+const NUMERO_ASIGNADO = NUMEROS_WHATSAPP[Math.floor(Math.random() * NUMEROS_WHATSAPP.length)];
+const SALUDO_WHATSAPP = "Hola SDT, tengo una consulta";
+const enlaceDirectoWhatsapp = `https://wa.me/${NUMERO_ASIGNADO}?text=${encodeURIComponent(SALUDO_WHATSAPP)}`;
+
+document.querySelectorAll("#enlaceWhatsapp, .whatsapp-flotante").forEach((enlace) => {
+    enlace.href = enlaceDirectoWhatsapp;
+    enlace.target = "_blank";
+    enlace.rel = "noopener noreferrer";
+});
 
 // ---------- Utilidades ----------
 
@@ -49,7 +50,7 @@ function abrirWhatsApp(numero, mensaje) {
     const enlace = document.createElement("a");
     enlace.href = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
     enlace.target = "_blank";
-    enlace.rel = "noopener";
+    enlace.rel = "noopener noreferrer";
     document.body.appendChild(enlace);
     enlace.click();
     enlace.remove();
@@ -90,9 +91,8 @@ function mostrarError(input, mensaje) {
     return !mensaje;
 }
 
-// Envía una copia de la consulta al correo (solo si CORREO está configurado)
-function enviarCopiaAlCorreo(datos, trampa) {
-    if (!CORREO) return Promise.resolve();
+// Envía la consulta al correo de la empresa
+function enviarAlCorreo(datos, trampa) {
     return fetch(`https://formsubmit.co/ajax/${CORREO}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
@@ -103,9 +103,16 @@ function enviarCopiaAlCorreo(datos, trampa) {
             _honey: trampa,
             ...datos
         })
-    }).then((respuesta) => {
-        if (!respuesta.ok) throw new Error("No se pudo enviar al correo");
-    });
+    })
+        .then((respuesta) => respuesta.json().catch(() => ({})).then((resultado) => ({ respuesta, resultado })))
+        .then(({ respuesta, resultado }) => {
+            // Mientras el formulario no esté activado, FormSubmit responde pidiendo activación:
+            // la consulta igual queda registrada y se envía el correo de activación.
+            const pendienteActivacion = /activ/i.test(resultado.message || "");
+            if (!pendienteActivacion && (!respuesta.ok || String(resultado.success) !== "true")) {
+                throw new Error(resultado.message || "No se pudo enviar al correo");
+            }
+        });
 }
 
 // ---------- 4. Formulario de consultas ----------
@@ -149,7 +156,6 @@ formulario.addEventListener("submit", (evento) => {
 
     const nombre = document.getElementById("nombre");
     const interes = document.getElementById("interes");
-    const numeroElegido = formulario.querySelector('input[name="numero"]:checked')?.value;
 
     // 3) Limpieza y validación de cada dato
     const nombreLimpio = limpiarTexto(nombre.value, MAX_NOMBRE);
@@ -169,9 +175,6 @@ formulario.addEventListener("submit", (evento) => {
         return;
     }
 
-    // 4) Solo se envía a uno de los números autorizados
-    const numero = NUMEROS_PERMITIDOS.includes(numeroElegido) ? numeroElegido : NUMEROS_PERMITIDOS[0];
-
     const datos = {
         "Nombre": nombreLimpio,
         "Interés": interes.value,
@@ -181,19 +184,29 @@ formulario.addEventListener("submit", (evento) => {
     ultimoEnvio = Date.now();
     guardarUltimoEnvio(ultimoEnvio);
 
-    // Copia al correo (se activa sola cuando se configura CORREO)
-    enviarCopiaAlCorreo(datos, trampa)
-        .catch(() => console.warn("La consulta no se pudo copiar al correo."));
+    // 4) La consulta se envía al correo de la empresa
+    const boton = formulario.querySelector('button[type="submit"]');
+    boton.disabled = true;
+    mostrarNota("ok", "Enviando tu consulta…");
 
-    // Abre WhatsApp con la consulta
-    abrirWhatsApp(numero,
-        `Hola SDT, tengo una consulta.\n` +
+    enviarAlCorreo(datos, trampa)
+        .then(() => {
+            mostrarNota("ok", "¡Recibimos tu consulta! Te responderemos a la brevedad. También se abrió WhatsApp por si quieres conversar ahora.");
+            formulario.reset();
+            actualizarContador();
+        })
+        .catch(() => {
+            mostrarNota("error", `No pudimos enviar tu consulta por correo. Escríbenos a ${CORREO} o usa la conversación de WhatsApp que se abrió.`);
+        })
+        .finally(() => { boton.disabled = false; });
+
+    // 5) Además se abre WhatsApp con la consulta (sin mostrar el número en la página)
+    abrirWhatsApp(NUMERO_ASIGNADO,
+        `${SALUDO_WHATSAPP}.\n` +
         `• Nombre: ${datos.Nombre}\n` +
         `• Me interesa: ${datos["Interés"]}\n` +
         `• Consulta: ${datos.Consulta}`
     );
-
-    mostrarNota("ok", "Se abrió WhatsApp con tu consulta. Solo presiona enviar y te responderemos a la brevedad.");
 });
 
 // Quita el error de un campo apenas la persona lo corrige
@@ -211,6 +224,3 @@ document.querySelectorAll(".foto__marco img").forEach((imagen) => {
     if (imagen.complete && imagen.naturalWidth === 0 && imagen.src) marcarSinFoto();
 });
 
-// ---------- 6. Botón flotante ----------
-document.querySelector(".whatsapp-flotante").href =
-    `https://wa.me/${WHATSAPP_FLOTANTE}?text=${encodeURIComponent("Hola SDT, tengo una consulta")}`;

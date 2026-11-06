@@ -15,20 +15,25 @@ sdt-web/
 ```
 
 ## Formulario de consultas
-- El cliente escribe su nombre, qué le interesa y su consulta, y elige a cuál de los
-  dos WhatsApp enviarla (+56 9 3436 1183 o +56 9 7789 4839).
-- Al enviar, se abre WhatsApp con la consulta escrita.
+- El cliente escribe su nombre, qué le interesa y su consulta.
+- Al enviar:
+  1. la consulta llega al correo **solucionesdesarrollo98@gmail.com** (servicio FormSubmit), y
+  2. se abre WhatsApp con la consulta escrita, por si el cliente quiere conversar al instante.
+- Los números de WhatsApp **no se muestran** en la página. Están en `js/script.js`
+  (`NUMEROS_WHATSAPP`) y las consultas se reparten al azar entre ambos.
+  El botón flotante y el enlace "Escríbenos por WhatsApp" también usan esos números.
 
-## Agregar el correo (cuando lo tengas)
-En `js/script.js`, línea `const CORREO = "";`, escribe el correo entre las comillas:
-```js
-const CORREO = "tucorreo@ejemplo.cl";
-```
-Con eso:
-1. El correo aparece solo en la sección de contacto.
-2. Cada consulta también llega a ese correo mediante FormSubmit (gratuito).
-   La primera vez, abre la página con Live Server o publicada en internet, envía una
-   consulta de prueba y presiona "Activate Form" en el correo que te llegará de FormSubmit.
+## Activar el correo (una sola vez, obligatorio)
+1. Abre la página con **Live Server** en VS Code (clic derecho en `index.html` → "Open with Live Server")
+   o ya publicada en internet. Con doble clic (archivo local) el envío al correo puede fallar.
+2. Envía una consulta de prueba desde el formulario.
+3. Revisa la bandeja de solucionesdesarrollo98@gmail.com (también la carpeta de spam),
+   abre el correo de FormSubmit y presiona **"Activate Form"**.
+4. Desde ese momento, cada consulta llega al correo con los datos ordenados en una tabla.
+
+Recomendado: FormSubmit te enviará un código. Reemplaza el correo en la línea
+`const CORREO = "...";` de `js/script.js` por ese código, para que tu dirección
+no quede escrita en el código de la página. El correo seguirá visible en la sección de contacto.
 
 ## Fotografías
 Las cuatro fotos de la sección "Así nace tu proyecto" son de **Unsplash**, con licencia de uso
@@ -48,12 +53,10 @@ los créditos de los fotógrafos al pie de la sección, como buena práctica.
   - espera de 30 segundos entre consultas, para evitar envíos repetidos;
   - limpieza del texto: quita etiquetas HTML y caracteres ocultos, y limita el largo;
   - el nombre solo acepta letras, y la consulta no acepta enlaces (spam);
-  - solo envía a los dos números autorizados, aunque alguien modifique la página.
+  - los números de WhatsApp no aparecen en el HTML: solo existen en el JavaScript.
 
 **En el servidor (al publicar):** sube también `.htaccess` (Apache/cPanel) o `_headers`
 (Netlify/Cloudflare). Agregan: bloqueo de marcos externos, HTTPS obligatorio, protección de
 tipos de archivo y bloqueo de cámara, micrófono y ubicación.
 Activa el HTTPS obligatorio solo cuando tu dominio ya tenga certificado SSL.
 
-**Al agregar el correo:** FormSubmit te enviará un código. Úsalo en lugar del correo dentro
-de `js/script.js` para que tu dirección no quede visible en el código.
